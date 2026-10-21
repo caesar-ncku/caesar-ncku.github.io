@@ -69,13 +69,27 @@
             color: #4da6ff;
         }
 
-        #fileInfo {
-            font-size: 13px;
-            color: #a3d0ff;
-            word-break: break-all;
+        /* New styles for the two-line file info display */
+        .file-info-container {
             background: #222;
-            padding: 10px;
+            padding: 15px 10px;
             border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #fileCounter {
+            font-size: 14px;
+            color: #a3d0ff;
+        }
+
+        #fileNameDisplay {
+            font-size: 32px; /* Greatly enlarged font */
+            font-weight: bold;
+            color: #ffff00; /* Yellow color */
+            word-wrap: break-word; /* Prevents long names from breaking the layout */
+            line-height: 1.2;
         }
 
         #statusMsg {
@@ -107,7 +121,10 @@
         </div>
 
         <div class="control-group">
-            <div id="fileInfo">(0/0) Filename: N/A</div>
+            <div class="file-info-container">
+                <div id="fileCounter">Filename: (0/0)</div>
+                <div id="fileNameDisplay">N/A</div>
+            </div>
         </div>
     </div>
 
@@ -116,7 +133,8 @@
         const timeSlider = document.getElementById('timeSlider');
         const sliderValue = document.getElementById('sliderValue');
         const pictureBox = document.getElementById('pictureBox');
-        const fileInfo = document.getElementById('fileInfo');
+        const fileCounter = document.getElementById('fileCounter');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
         const statusMsg = document.getElementById('statusMsg');
 
         let rootImages = [];
@@ -208,7 +226,8 @@
             let targetArray = mode === 'root' ? rootImages : imagesByDir[mode];
 
             if (!targetArray || targetArray.length === 0) {
-                fileInfo.textContent = "(0/0) Filename: No images here";
+                fileCounter.textContent = "Filename: (0/0)";
+                fileNameDisplay.textContent = "No images here";
                 pictureBox.style.display = 'none';
                 return;
             }
@@ -218,10 +237,13 @@
             pictureBox.src = imagePath;
             pictureBox.style.display = 'block';
 
+            // Extract the filename and update the split text fields
             const rawFileName = getFileName(imagePath);
             const n = currentIndex + 1;
             const m = targetArray.length;
-            fileInfo.textContent = `(${n}/${m}) Filename: ${rawFileName}`;
+            
+            fileCounter.textContent = `Filename: (${n}/${m})`;
+            fileNameDisplay.textContent = rawFileName;
 
             currentIndex++;
             if (currentIndex >= targetArray.length) {
