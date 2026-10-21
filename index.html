@@ -237,13 +237,15 @@
             pictureBox.src = imagePath;
             pictureBox.style.display = 'block';
 
-            // Extract the filename and update the split text fields
+            // Extract the filename and remove the extension
             const rawFileName = getFileName(imagePath);
+            const nameOnly = rawFileName.substring(0, rawFileName.lastIndexOf('.')) || rawFileName;
+            
             const n = currentIndex + 1;
             const m = targetArray.length;
             
             fileCounter.textContent = `Filename: (${n}/${m})`;
-            fileNameDisplay.textContent = rawFileName;
+            fileNameDisplay.textContent = nameOnly; // Displays without the .jpg
 
             currentIndex++;
             if (currentIndex >= targetArray.length) {
