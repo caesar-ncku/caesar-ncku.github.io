@@ -1,4 +1,4 @@
-﻿index.html
+index.html
 list.txt
 S__32546825_0.jpg
 S__32546826_0.jpg
