@@ -1,12 +1,6 @@
 ﻿index.html
+list.txt
 listold.txt
-S__32546825_0.jpg
-S__32546826_0.jpg
-S__32546827_0.jpg
-S__32546828_0.jpg
-S__32546829_0.jpg
-S__32546830_0.jpg
-S__32546831_0.jpg
 080s\081碩沈昌言.jpg
 080s\082碩林奎賢.jpg
 080s\082碩邱寶嬌.jpg
