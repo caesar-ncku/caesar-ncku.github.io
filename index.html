@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Server Picture Browser</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .picture-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background-color: #000000;
+        }
+
+        #pictureBox {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; 
+            display: none;
+        }
+
+        .controls-panel {
+            width: 300px;
+            min-width: 300px;
+            background-color: #2d2d2d;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        select, input[type="range"] {
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background-color: #3d3d3d;
+            color: white;
+            cursor: pointer;
+        }
+
+        select:focus {
+            background-color: #4d4d4d;
+        }
+
+        #sliderValue {
+            font-weight: bold;
+            color: #4da6ff;
+        }
+
+        #fileInfo {
+            font-size: 13px;
+            color: #a3d0ff;
+            word-break: break-all;
+            background: #222;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        #statusMsg {
+            color: #ffcc00;
+            font-weight: bold;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="picture-container">
+        <img id="pictureBox" alt="Picture Box" />
+    </div>
+
+    <div class="controls-panel">
+        <div id="statusMsg">Loading picture list...</div>
+
+        <div class="control-group">
+            <label for="dirSelect">Display Directory:</label>
+            <select id="dirSelect" disabled>
+                <option value="root">Root Directory</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="timeSlider">Display Time: <span id="sliderValue">3</span> seconds</label>
+            <input type="range" id="timeSlider" min="3" max="10" value="3" step="1">
+        </div>
+
+        <div class="control-group">
+            <div id="fileInfo">(0/0) Filename: N/A</div>
+        </div>
+    </div>
+
+    <script>
+        const dirSelect = document.getElementById('dirSelect');
+        const timeSlider = document.getElementById('timeSlider');
+        const sliderValue = document.getElementById('sliderValue');
+        const pictureBox = document.getElementById('pictureBox');
+        const fileInfo = document.getElementById('fileInfo');
+        const statusMsg = document.getElementById('statusMsg');
+
+        let rootImages = [];
+        let imagesByDir = {};
+        let currentTimer = null;
+        let currentIndex = 0;
+
+        const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+        const getFileName = (path) => path.split('/').pop();
+        const sortByName = (a, b) => getFileName(a).localeCompare(getFileName(b), undefined, { numeric: true, sensitivity: 'base' });
+
+        timeSlider.addEventListener('input', (e) => {
+            sliderValue.textContent = e.target.value;
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+            fetch('list.txt?t=' + new Date().getTime())
+                .then(response => {
+                    if (!response.ok) throw new Error("Could not find list.txt on the server.");
+                    return response.text();
+                })
+                .then(text => processFileList(text))
+                .catch(error => {
+                    statusMsg.style.color = "#ff4d4d";
+                    statusMsg.textContent = "Error: " + error.message;
+                });
+        });
+
+        function processFileList(text) {
+            const lines = text.split('\n');
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (!line) return;
+
+                const webPath = line.replace(/\\/g, '/');
+                
+                const extIndex = webPath.lastIndexOf('.');
+                if (extIndex === -1) return;
+                const ext = webPath.substring(extIndex).toLowerCase();
+                
+                if (validExtensions.includes(ext)) {
+                    const pathParts = webPath.split('/');
+                    
+                    if (pathParts.length === 1) {
+                        rootImages.push(webPath);
+                    } else {
+                        const subDirName = pathParts[0]; 
+                        if (!imagesByDir[subDirName]) {
+                            imagesByDir[subDirName] = [];
+                        }
+                        imagesByDir[subDirName].push(webPath);
+                    }
+                }
+            });
+
+            rootImages.sort(sortByName);
+            Object.keys(imagesByDir).sort().forEach(subDirName => {
+                imagesByDir[subDirName].sort(sortByName);
+                const option = document.createElement('option');
+                option.value = subDirName;
+                option.textContent = subDirName;
+                dirSelect.appendChild(option);
+            });
+
+            if (rootImages.length > 0 || Object.keys(imagesByDir).length > 0) {
+                statusMsg.style.display = 'none'; 
+                dirSelect.disabled = false; 
+
+                if (rootImages.length === 0) {
+                    dirSelect.value = Object.keys(imagesByDir).sort()[0];
+                }
+                
+                showNextPicture();
+            } else {
+                statusMsg.style.color = "#ff4d4d";
+                statusMsg.textContent = "No valid images found in list.txt.";
+            }
+        }
+
+        dirSelect.addEventListener('change', () => {
+            currentIndex = 0; 
+            clearTimeout(currentTimer);
+            showNextPicture();
+        });
+
+        function showNextPicture() {
+            const mode = dirSelect.value;
+            let targetArray = mode === 'root' ? rootImages : imagesByDir[mode];
+
+            if (!targetArray || targetArray.length === 0) {
+                fileInfo.textContent = "(0/0) Filename: No images here";
+                pictureBox.style.display = 'none';
+                return;
+            }
+
+            const imagePath = targetArray[currentIndex];
+            
+            pictureBox.src = imagePath;
+            pictureBox.style.display = 'block';
+
+            const rawFileName = getFileName(imagePath);
+            const n = currentIndex + 1;
+            const m = targetArray.length;
+            fileInfo.textContent = `(${n}/${m}) Filename: ${rawFileName}`;
+
+            currentIndex++;
+            if (currentIndex >= targetArray.length) {
+                currentIndex = 0;
+            }
+
+            const delayInSeconds = parseInt(timeSlider.value, 10);
+            
+            currentTimer = setTimeout(() => {
+                showNextPicture();
+            }, delayInSeconds * 1000);
+        }
+    </script>
+</body>
+</html>
