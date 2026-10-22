@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+/*display picture files from local directory*/
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Picture Browser</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Left side: Picture Box */
+        .picture-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background-color: #000000;
+        }
+
+        #pictureBox {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain; 
+            display: none;
+        }
+
+        /* Right side: Control Panel */
+        .controls-panel {
+            width: 300px;
+            min-width: 300px;
+            background-color: #2d2d2d;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        select, input[type="file"], input[type="range"] {
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background-color: #3d3d3d;
+            color: white;
+            cursor: pointer;
+        }
+
+        select:focus {
+            background-color: #4d4d4d;
+        }
+
+        #sliderValue {
+            font-weight: bold;
+            color: #4da6ff;
+        }
+
+        /* Two-line file info display styles */
+        .file-info-container {
+            background: #222;
+            padding: 15px 10px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #fileCounter {
+            font-size: 14px;
+            color: #a3d0ff;
+        }
+
+        #fileNameDisplay {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ffff00;
+            word-wrap: break-word;
+            line-height: 1.2;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="picture-container">
+        <img id="pictureBox" alt="Picture Box" />
+    </div>
+
+    <div class="controls-panel">
+        <div class="control-group">
+            <label for="folderInput">1. Select Picture Directory:</label>
+            <input type="file" id="folderInput" webkitdirectory directory multiple />
+        </div>
+
+        <div class="control-group">
+            <label for="dirSelect">2. 級 別:</label>
+            <select id="dirSelect">
+                <option value="root">一 般</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="timeSlider">3. Display Time: <span id="sliderValue">3</span> seconds</label>
+            <input type="range" id="timeSlider" min="3" max="10" value="3" step="1">
+        </div>
+
+        <div class="control-group">
+            <div class="file-info-container">
+                <div id="fileCounter">Filename: (0/0)</div>
+                <div id="fileNameDisplay">N/A</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const folderInput = document.getElementById('folderInput');
+        const dirSelect = document.getElementById('dirSelect');
+        const timeSlider = document.getElementById('timeSlider');
+        const sliderValue = document.getElementById('sliderValue');
+        const pictureBox = document.getElementById('pictureBox');
+        const fileCounter = document.getElementById('fileCounter');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+
+        let rootImages = [];
+        let imagesByDir = {};
+        let currentTimer = null;
+        let currentIndex = 0; // Tracks the sequential position
+
+        // Helper function to sort files naturally by name sequentially
+        const sortByName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+
+        // Update slider UI text
+        timeSlider.addEventListener('input', (e) => {
+            sliderValue.textContent = e.target.value;
+        });
+
+        // Handle directory selection
+        folderInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            rootImages = [];
+            imagesByDir = {};
+            currentIndex = 0;
+            
+            dirSelect.innerHTML = '<option value="root">Root Directory</option>';
+
+            files.forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const pathParts = file.webkitRelativePath.split('/');
+                    
+                    if (pathParts.length === 2) { 
+                        rootImages.push(file); 
+                    } else if (pathParts.length > 2) { 
+                        const subDirName = pathParts[1]; 
+                        if (!imagesByDir[subDirName]) {
+                            imagesByDir[subDirName] = [];
+                        }
+                        imagesByDir[subDirName].push(file);
+                    }
+                }
+            });
+
+            // Sort root directory images by name
+            rootImages.sort(sortByName);
+
+            // Sort sub-directory names and their images
+            Object.keys(imagesByDir).sort().forEach(subDirName => {
+                imagesByDir[subDirName].sort(sortByName);
+                const option = document.createElement('option');
+                option.value = subDirName;
+                option.textContent = subDirName;
+                dirSelect.appendChild(option);
+            });
+
+            if (rootImages.length > 0 || Object.keys(imagesByDir).length > 0) {
+                if (rootImages.length === 0) {
+                    dirSelect.value = Object.keys(imagesByDir).sort()[0];
+                }
+                clearTimeout(currentTimer);
+                showNextPicture();
+            } else {
+                alert("No images found in the selected directory.");
+            }
+        });
+
+        // Handle dropdown change (Switching directories)
+        dirSelect.addEventListener('change', () => {
+            currentIndex = 0; 
+            clearTimeout(currentTimer);
+            showNextPicture();
+        });
+
+        // Core slideshow logic (Sequential)
+        function showNextPicture() {
+            const mode = dirSelect.value;
+            let targetArray = mode === 'root' ? rootImages : imagesByDir[mode];
+
+            if (!targetArray || targetArray.length === 0) {
+                fileCounter.textContent = "Filename: (0/0)";
+                fileNameDisplay.textContent = "No images here";
+                pictureBox.style.display = 'none';
+                return;
+            }
+
+            // Get the sequential image
+            const selectedImageFile = targetArray[currentIndex];
+
+            // Display the image
+            if (pictureBox.src) {
+                URL.revokeObjectURL(pictureBox.src);
+            }
+            pictureBox.src = URL.createObjectURL(selectedImageFile);
+            pictureBox.style.display = 'block';
+
+            // Extract the filename and remove the extension
+            const rawFileName = selectedImageFile.name;
+            const nameOnly = rawFileName.substring(0, rawFileName.lastIndexOf('.')) || rawFileName;
+
+            // Update the File Info controls
+            const n = currentIndex + 1;
+            const m = targetArray.length;
+            fileCounter.textContent = `Filename: (${n}/${m})`;
+            fileNameDisplay.textContent = nameOnly; // Displays without the extension in yellow
+
+            // Increment index sequentially. Loop back to 0 if at the end.
+            currentIndex++;
+            if (currentIndex >= targetArray.length) {
+                currentIndex = 0;
+            }
+
+            // Get current slider value and set next timer dynamically
+            const delayInSeconds = parseInt(timeSlider.value, 10);
+            currentTimer = setTimeout(() => {
+                showNextPicture();
+            }, delayInSeconds * 1000);
+        }
+    </script>
+</body>
+</html>
