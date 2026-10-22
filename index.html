@@ -144,8 +144,7 @@
 
         const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
         const getFileName = (path) => path.split('/').pop();
-        const sortByName = (a, b) => getFileName(a).localeCompare(getFileName(b), undefined, { numeric: true, sensitivity: 'base' });
-
+     
         timeSlider.addEventListener('input', (e) => {
             sliderValue.textContent = e.target.value;
         });
@@ -191,10 +190,8 @@
                 }
             });
 
-            rootImages.sort(sortByName);
             Object.keys(imagesByDir).sort().forEach(subDirName => {
-                imagesByDir[subDirName].sort(sortByName);
-                const option = document.createElement('option');
+   		const option = document.createElement('option');
                 option.value = subDirName;
                 option.textContent = subDirName;
                 dirSelect.appendChild(option);
